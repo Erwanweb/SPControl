@@ -62,6 +62,7 @@ import time
 import math
 import html
 import requests
+import ast
 import os
 import subprocess as sp
 from distutils.version import LooseVersion
@@ -244,6 +245,50 @@ class BasePlugin:
         else:
             Domoticz.Error("Error reading Mode2 parameters")
 
+        # load persistent values before any read/save cycle
+        self.getUserVar()
+
+        # restore persisted values immediately in memory
+        self.PHVal = self.Internals.get('SPPH', self.InternalsDefaults['SPPH'])
+        self.RedoxVal = self.Internals.get('SPRedox', self.InternalsDefaults['SPRedox'])
+        self.PumpTemp = self.Internals.get('SPTime', self.InternalsDefaults['SPTime'])
+        self.SPTemp = self.Internals.get('SPTemp', self.InternalsDefaults['SPTemp'])
+        self.TempExt = self.Internals.get('OutTemp', self.InternalsDefaults['OutTemp'])
+        self.LastFlowTemp = self.Internals.get('LastFlowTemp', self.InternalsDefaults['LastFlowTemp'])
+
+        # reflect restored values in Domoticz devices immediately
+        Devices[4].Update(nValue=0, sValue=str(self.SPTemp))
+        Devices[8].Update(nValue=0, sValue=str(self.PHVal))
+        Devices[10].Update(nValue=0, sValue=str(self.RedoxVal))
+
+        if self.PHanalyzer:
+            if (self.PHVal >= 7.2) and (self.PHVal < 7.6):
+                Devices[7].Update(nValue=1, sValue="Parfait")
+            elif (self.PHVal >= 6.9) and (self.PHVal < 7.2):
+                Devices[7].Update(nValue=3, sValue="Legerement bas")
+            elif self.PHVal < 6.9:
+                Devices[7].Update(nValue=4, sValue="Trop Bas")
+            elif (self.PHVal >= 7.6) and (self.PHVal < 7.8):
+                Devices[7].Update(nValue=3, sValue="Legerement haut")
+            else:
+                Devices[7].Update(nValue=4, sValue="Trop Haut")
+        else:
+            Devices[7].Update(nValue=0, sValue="Waiting values")
+
+        if self.Redoxanalyzer:
+            if (self.RedoxVal >= 650) and (self.RedoxVal < 750):
+                Devices[9].Update(nValue=1, sValue="Parfait")
+            elif (self.RedoxVal >= 620) and (self.RedoxVal < 650):
+                Devices[9].Update(nValue=3, sValue="Legerement bas")
+            elif self.RedoxVal < 620:
+                Devices[9].Update(nValue=4, sValue="Trop bas")
+            elif (self.RedoxVal >= 751) and (self.RedoxVal < 800):
+                Devices[9].Update(nValue=3, sValue="Legerement haut")
+            else:
+                Devices[9].Update(nValue=4, sValue="Trop Haut")
+        else:
+            Devices[9].Update(nValue=0, sValue="Waiting values")
+
         # updating temp, timers and filtration
         now = datetime.now()
         self.readTemps()
@@ -267,17 +312,8 @@ class BasePlugin:
             self.powerOn = 0
             self.forced = 0
 
-        # update PH and Redox to 0 at starting
-        Devices[8].Update(nValue=0, sValue="0")
-        Devices[7].Update(nValue=0, sValue="Waiting values")
-        Devices[10].Update(nValue=0, sValue="0")
-        Devices[9].Update(nValue=0, sValue="Waiting values")
-                
         # Set domoticz heartbeat to 20 s (onheattbeat() will be called every 20 )
         Domoticz.Heartbeat(20)
-
-        # creating user variable if doesn't exist or update it
-        self.getUserVar()
 
         # Now we can enabling the plugin
         self.isStarted = True
@@ -792,7 +828,7 @@ class BasePlugin:
                 self.Internals = self.InternalsDefaults.copy()  # we re-initialize the internal variables
             else:
                 try:
-                    self.Internals.update(eval(valuestring))
+                    self.Internals.update(ast.literal_eval(valuestring))
                 except:
                     self.Internals = self.InternalsDefaults.copy()
                 return
