@@ -33,14 +33,9 @@ Version:    0.0.1: alpha
         <param field="Mode5" label="In Flow Water Temp. Sensors (csv list of idx)" width="100px" required="false" default=""/>
         <param field="Mode6" label="Logging Level" width="200px">
             <options>
-                <option label="Normal" value="Normal"  default="true"/>
-                <option label="Verbose" value="Verbose"/>
-                <option label="Debug - Python Only" value="2"/>
-                <option label="Debug - Basic" value="62"/>
-                <option label="Debug - Basic+Messages" value="126"/>
-                <option label="Debug - Connections Only" value="16"/>
-                <option label="Debug - Connections+Queue" value="144"/>
-                <option label="Debug - All" value="-1"/>
+                <option label="None" value="0"/>
+                <option label="Normal" value="2"  default="true"/>
+                <option label="Debug - All" value="1"/>
             </options>
         </param>
     </params>
@@ -119,17 +114,17 @@ class BasePlugin:
         self.PHanalyzer = False
         self.Redoxanalyzer = False
         self.OutTempSensors = []
-        self.TempExt = 10
+        self.TempExt = 20
         self.nextouttemps = datetime.now()
         self.NoPermTemp = False  # aucun capteur permanent en Mode4
         self.LastFlowTemp = None  # dernière T° mesurée en circulation (in-tube)
         self.InternalsDefaults = {
-            'SPTemp': 10,  # defaut temp
+            'SPTemp': 20,  # defaut temp
             'SPPH': 0,  # defaut ph
             'SPRedox': 0,  # defaut redox
-            'SPTime': 0,  # defaut Calculated filtration time
-            'OutTemp': 10, # defaut outdoor temp
-            'LastFlowTemp': 10}  # defaut water temp
+            'SPTime': 12,  # defaut Calculated filtration time
+            'OutTemp': 20, # defaut outdoor temp
+            'LastFlowTemp': 20}  # defaut water temp
         self.Internals = self.InternalsDefaults.copy()
         return
 
@@ -145,7 +140,6 @@ class BasePlugin:
             self.debug = True
             Domoticz.Debugging(debuglevel)
             DumpConfigToLog()
-            self.loglevel = "Verbose"
         else:
             self.debug = False
             Domoticz.Debugging(0)
