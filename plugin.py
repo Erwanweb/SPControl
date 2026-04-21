@@ -33,8 +33,9 @@ Version:    0.0.1: alpha
         <param field="Mode5" label="In Flow Water Temp. Sensors (csv list of idx)" width="100px" required="false" default=""/>
         <param field="Mode6" label="Logging Level" width="200px">
             <options>
-                <option label="None" value="0"/>
-                <option label="Normal" value="2"  default="true"/>
+                <option label="Normal" value="0" default="true"/>
+                <option label="Debug - Python Only" value="2"/>
+                <option label="Debug - Basic" value="62"/>
                 <option label="Debug - All" value="1"/>
             </options>
         </param>
