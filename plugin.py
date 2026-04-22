@@ -115,7 +115,7 @@ class BasePlugin:
         self.PHanalyzer = False
         self.Redoxanalyzer = False
         self.OutTempSensors = []
-        self.TempExt = 20
+        self.TempExt = 10
         self.nextouttemps = datetime.now()
         self.NoPermTemp = False  # aucun capteur permanent en Mode4
         self.LastFlowTemp = None  # dernière T° mesurée en circulation (in-tube)
@@ -127,7 +127,24 @@ class BasePlugin:
             'OutTemp': 20, # defaut outdoor temp
             'LastFlowTemp': 20}  # defaut water temp
         self.Internals = self.InternalsDefaults.copy()
+        self._internals_serialized = ""
         return
+
+
+    def updateDeviceIfChanged(self, unit, nvalue, svalue):
+        UpdateDeviceIfChanged(unit, nvalue, svalue)
+
+    def syncInternalsFromRuntime(self):
+        self.Internals['SPPH'] = self.PHVal
+        self.Internals['SPRedox'] = self.RedoxVal
+        self.Internals['SPTime'] = self.PumpTemp
+        self.Internals['SPTemp'] = self.SPTemp
+        self.Internals['OutTemp'] = self.TempExt
+        self.Internals['LastFlowTemp'] = self.LastFlowTemp
+
+    def persistInternals(self):
+        self.syncInternalsFromRuntime()
+        self.saveUserVar()
 
     def onStart(self):
 
@@ -186,7 +203,7 @@ class BasePlugin:
 
         # if any device has been created in onStart(), now is time to update its defaults
         for device in devicecreated:
-            Devices[device.unit].Update(nValue=device.nvalue, sValue=device.svalue)
+            UpdateDeviceIfChanged(device.unit, device.nvalue, device.svalue)
 
         # splits parameters
         self.pumppower = float(Parameters["Password"])
@@ -252,44 +269,44 @@ class BasePlugin:
         self.LastFlowTemp = self.Internals.get('LastFlowTemp', self.InternalsDefaults['LastFlowTemp'])
 
         # reflect restored values in Domoticz devices immediately
-        Devices[4].Update(nValue=0, sValue=str(self.SPTemp))
-        Devices[8].Update(nValue=0, sValue=str(self.PHVal))
-        Devices[10].Update(nValue=0, sValue=str(self.RedoxVal))
+        UpdateDeviceIfChanged(4, 0, str(self.SPTemp))
+        UpdateDeviceIfChanged(8, 0, str(self.PHVal))
+        UpdateDeviceIfChanged(10, 0, str(self.RedoxVal))
 
         if self.PHanalyzer:
             if (self.PHVal >= 7.2) and (self.PHVal < 7.6):
-                Devices[7].Update(nValue=1, sValue="Parfait")
+                UpdateDeviceIfChanged(7, 1, "Parfait")
             elif (self.PHVal >= 6.9) and (self.PHVal < 7.2):
-                Devices[7].Update(nValue=3, sValue="Legerement bas")
+                UpdateDeviceIfChanged(7, 3, "Legerement bas")
             elif self.PHVal < 6.9:
-                Devices[7].Update(nValue=4, sValue="Trop Bas")
+                UpdateDeviceIfChanged(7, 4, "Trop Bas")
             elif (self.PHVal >= 7.6) and (self.PHVal < 7.8):
-                Devices[7].Update(nValue=3, sValue="Legerement haut")
+                UpdateDeviceIfChanged(7, 3, "Legerement haut")
             else:
-                Devices[7].Update(nValue=4, sValue="Trop Haut")
+                UpdateDeviceIfChanged(7, 4, "Trop Haut")
         else:
-            Devices[7].Update(nValue=0, sValue="Waiting values")
+            UpdateDeviceIfChanged(7, 0, "Waiting values")
 
         if self.Redoxanalyzer:
             if (self.RedoxVal >= 650) and (self.RedoxVal < 750):
-                Devices[9].Update(nValue=1, sValue="Parfait")
+                UpdateDeviceIfChanged(9, 1, "Parfait")
             elif (self.RedoxVal >= 620) and (self.RedoxVal < 650):
-                Devices[9].Update(nValue=3, sValue="Legerement bas")
+                UpdateDeviceIfChanged(9, 3, "Legerement bas")
             elif self.RedoxVal < 620:
-                Devices[9].Update(nValue=4, sValue="Trop bas")
+                UpdateDeviceIfChanged(9, 4, "Trop bas")
             elif (self.RedoxVal >= 751) and (self.RedoxVal < 800):
-                Devices[9].Update(nValue=3, sValue="Legerement haut")
+                UpdateDeviceIfChanged(9, 3, "Legerement haut")
             else:
-                Devices[9].Update(nValue=4, sValue="Trop Haut")
+                UpdateDeviceIfChanged(9, 4, "Trop Haut")
         else:
-            Devices[9].Update(nValue=0, sValue="Waiting values")
+            UpdateDeviceIfChanged(9, 0, "Waiting values")
 
         # updating temp, timers and filtration
         now = datetime.now()
         self.readTemps()
         self.readOutTemps()
         self.readAnalyzer()
-        Devices[3].Update(nValue=0, sValue=Devices[3].sValue)
+        UpdateDeviceIfChanged(3, 0, Devices[3].sValue)
         #self.readTemps = now - timedelta(hours=36)
         self.FiltrationVarNextRefresh = now - timedelta(hours=36)
         self.pumporderchangedtime = now - timedelta(hours=36)
@@ -328,33 +345,33 @@ class BasePlugin:
         Domoticz.Debug("onCommand called for Unit {}: Command '{}', Level: {}".format(Unit, Command, Level))
 
         if (Unit == 1):
-            Devices[1].Update(nValue=self.powerOn, sValue=str(Level))
+            UpdateDeviceIfChanged(1, self.powerOn, str(Level))
             if (Devices[1].sValue == "10"):  # Mode auto
                 self.powerOn = 1
                 self.forced = 0
-                Devices[1].Update(nValue=1, sValue=Devices[1].sValue)
+                UpdateDeviceIfChanged(1, 1, Devices[1].sValue)
             elif (Devices[1].sValue == "20"):  # Manual Mode
                 self.powerOn = 1
                 self.forced = 1
-                Devices[1].Update(nValue=1, sValue=Devices[1].sValue)
+                UpdateDeviceIfChanged(1, 1, Devices[1].sValue)
             else : # Off
-                Devices[1].Update(nValue=0, sValue=Devices[1].sValue)
+                UpdateDeviceIfChanged(1, 0, Devices[1].sValue)
                 self.powerOn = 0
                 self.forced = 0
-                Devices[2].Update(nValue=self.powerOn, sValue=Devices[2].sValue)
+                UpdateDeviceIfChanged(2, self.powerOn, Devices[2].sValue)
             # Update child devices
             if not (Devices[2].sValue == "0"):  # Heating Off
-                Devices[2].Update(nValue=self.powerOn, sValue=Devices[2].sValue)
+                UpdateDeviceIfChanged(2, self.powerOn, Devices[2].sValue)
 
         if (Unit == 2):  # Heating
-            Devices[2].Update(nValue=self.powerOn, sValue=str(Level))
+            UpdateDeviceIfChanged(2, self.powerOn, str(Level))
             if (Devices[2].sValue == "0"):  # Off
-                Devices[2].Update(nValue=0, sValue=Devices[2].sValue)
+                UpdateDeviceIfChanged(2, 0, Devices[2].sValue)
             else :
-                Devices[2].Update(nValue=self.powerOn, sValue=str(Level))
+                UpdateDeviceIfChanged(2, self.powerOn, str(Level))
 
         if (Unit == 5):  # Setpoint
-            Devices[5].Update(nValue=self.powerOn, sValue=str(Level))
+            UpdateDeviceIfChanged(5, self.powerOn, str(Level))
             self.setpoint = round(float(Devices[5].sValue))
 
         self.onHeartbeat()
@@ -414,21 +431,21 @@ class BasePlugin:
             self.forced = 0
             self.pumpon = False
             if Devices[3].nValue == 1:
-                Devices[3].Update(nValue=0, sValue=Devices[3].sValue)
+                UpdateDeviceIfChanged(3, 0, Devices[3].sValue)
                 DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=Off".format(self.pumpidx))
                 self.pumporderchangedtime = datetime.now()
             Domoticz.Debug("System is OFF - ALL OFF")
-            Devices[11].Update(nValue=0, sValue="OFF")
+            UpdateDeviceIfChanged(11, 0, "OFF")
         elif Devices[1].sValue == "20": # Manual
             self.forced = 1
             if Devices[3].nValue == 0:
-                Devices[3].Update(nValue=1, sValue=Devices[3].sValue)
+                UpdateDeviceIfChanged(3, 1, Devices[3].sValue)
                 DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=On".format(self.pumpidx))
                 self.pumpon = True
                 self.pumporderchangedtime = datetime.now()
                 self.pumponstarttime = datetime.now()
             Domoticz.Debug("System is ON - Filtration in MANUAL Mode")
-            Devices[11].Update(nValue=0, sValue="ON - Manual Mode")
+            UpdateDeviceIfChanged(11, 0, "ON - Manual Mode")
         else : # Auto
             Domoticz.Debug("System is ON - Filtration in AUTO Mode")
             self.forced = 0
@@ -475,14 +492,7 @@ class BasePlugin:
                             self.PumpTemp = round((self.SPTempCheck / 2) * self.pumppower, 1)
                             self.FiltrationVarNextRefresh = now + timedelta(hours=4)
                             Domoticz.Debug("Filtration calcul. dur. is 1/2 of SP Temp and so fixed at (h): " + str(self.PumpTemp))
-                # modif des users variable
-                self.Internals['SPPH'] = self.PHVal
-                self.Internals['SPRedox'] = self.RedoxVal
-                self.Internals['SPTime'] = self.PumpTemp
-                self.Internals['SPTemp'] = self.SPTemp
-                self.Internals['OutTemp'] = self.TempExt
-                self.Internals['LastFlowTemp'] = self.LastFlowTemp
-                self.saveUserVar()  # update user variables with latest values
+                self.persistInternals()
                 # Now we set timers
                 jsonData = DomoticzAPI("type=command&param=getSunRiseSet")
                 if jsonData :
@@ -510,7 +520,7 @@ class BasePlugin:
             if self.startpump < now and self.stoppump > now : # We are in the period of filtration
                 self.pumpon = True
                 if Devices[3].nValue == 0:
-                    Devices[3].Update(nValue=1, sValue=Devices[3].sValue)
+                    UpdateDeviceIfChanged(3, 1, Devices[3].sValue)
                     DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=On".format(self.pumpidx))
                     self.pumporderchangedtime = datetime.now()
                     self.pumponstarttime = datetime.now()
@@ -520,7 +530,7 @@ class BasePlugin:
             else :
                 self.pumpon = False # We are not yet in the period of filtration
                 if Devices[3].nValue == 1:
-                    Devices[3].Update(nValue=0, sValue=Devices[3].sValue)
+                    UpdateDeviceIfChanged(3, 0, Devices[3].sValue)
                     DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=Off".format(self.pumpidx))
                     self.pumporderchangedtime = datetime.now()
                 Domoticz.Debug("Pump is OFF - Will turn ON at " + str(self.startpump))
@@ -529,7 +539,7 @@ class BasePlugin:
                 if self.stoppump < now : # We are in the period of filtration and we leave it, stop pump
                     self.pumpon = False
                     if Devices[3].nValue == 1:
-                        Devices[3].Update(nValue=0, sValue=Devices[3].sValue)
+                        UpdateDeviceIfChanged(3, 0, Devices[3].sValue)
                         DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=Off".format(self.pumpidx))
                         self.pumporderchangedtime = datetime.now()
                     Domoticz.Debug("Pump turned OFF after daily period at : " + str(self.stoppump))
@@ -553,9 +563,9 @@ class BasePlugin:
             StopM = T2.strftime("%M")
             Domoticz.Debug("Start is {}:{} stop at {}:{} ".format(StartH, StartM, StopH, StopM))
             if self.AntiFreeze :
-                Devices[11].Update(nValue=0, sValue="Auto - Protect. Antigel - TºExt {}ºC Eau {}ºC".format(self.TempExt, self.SPTemp))
+                UpdateDeviceIfChanged(11, 0, "Auto - Protect. Antigel - TºExt {}ºC Eau {}ºC".format(self.TempExt, self.SPTemp))
             else :
-                Devices[11].Update(nValue=0, sValue="Auto - Calcul.~{}h : {}:{}--{}:{}".format(self.PumpTempRounded, StartH, StartM, StopH, StopM))
+                UpdateDeviceIfChanged(11, 0, "Auto - Calcul.~{}h : {}:{}--{}:{}".format(self.PumpTempRounded, StartH, StartM, StopH, StopM))
         # be sure each 15 mins relay take the real good order and position, main for auto mode
         if not self.forced :
             if self.pumporderchangedtime + timedelta(minutes=15) < now:
@@ -566,7 +576,7 @@ class BasePlugin:
                     DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=Off".format(self.pumpidx))
         else :
             if Devices[3].nValue == 0:
-                Devices[3].Update(nValue=1, sValue=Devices[3].sValue)
+                UpdateDeviceIfChanged(3, 1, Devices[3].sValue)
                 DomoticzAPI("type=command&param=switchlight&idx={}&switchcmd=On".format(self.pumpidx))
                 self.pumpon = True
                 self.pumponstarttime = datetime.now()
@@ -576,28 +586,28 @@ class BasePlugin:
             if (Devices[2].sValue == "20"): # Heating forced
                 self.Heating = True
                 if Devices[6].nValue == 0:
-                    Devices[6].Update(nValue=1, sValue=Devices[6].sValue)
+                    UpdateDeviceIfChanged(6, 1, Devices[6].sValue)
                     Domoticz.Debug("Heating is FORCED ON")
             elif (Devices[2].sValue == "10"): # Heating Auto with 1 for hysterisis low
                 if self.SPTemp < (float(Devices[5].sValue) - 1):
                     self.Heating = True
                     if Devices[6].nValue == 0:
-                        Devices[6].Update(nValue=1, sValue=Devices[6].sValue)
+                        UpdateDeviceIfChanged(6, 1, Devices[6].sValue)
                     Domoticz.Debug("Heating is AUTO ON - Heating requested")
                 if self.SPTemp > (float(Devices[5].sValue) + 0.1):
                     self.Heating = False
                     if Devices[6].nValue == 1:
-                        Devices[6].Update(nValue=0, sValue=Devices[6].sValue)
+                        UpdateDeviceIfChanged(6, 0, Devices[6].sValue)
                     Domoticz.Debug("Heating is AUTO OFF - No heating requested")
             else : # Heating off
                 self.Heating = False
                 if Devices[6].nValue == 1:
-                    Devices[6].Update(nValue=0, sValue=Devices[6].sValue)
+                    UpdateDeviceIfChanged(6, 0, Devices[6].sValue)
                 Domoticz.Debug("Heating is OFF")
         else :
             self.Heating = False
             if Devices[6].nValue == 1:
-                Devices[6].Update(nValue=0, sValue=Devices[6].sValue)
+                UpdateDeviceIfChanged(6, 0, Devices[6].sValue)
             Domoticz.Debug("Heating is OFF Because of system OFF")
 
 # Read Analyzer---------------------------------------------------------------------------------------------
@@ -612,23 +622,22 @@ class BasePlugin:
                 for device in jsonData1["result"]:
                     if "Data" in device:
                         self.PHVal = float(device["Data"])
-                        Devices[8].Update(nValue=0, sValue=str(self.PHVal))  # update the dummy device
+                        UpdateDeviceIfChanged(8, 0, str(self.PHVal))  # update the dummy device
                         Domoticz.Debug("SP PH = {}".format(self.PHVal))
                         if (self.PHVal >= 7.2) and (self.PHVal < 7.6):
-                            Devices[7].Update(nValue=1,
-                                              sValue="Parfait")  # update the dummy device 0-gris 1-vert 2-yellow 3-orange 4-red
+                            UpdateDeviceIfChanged(7, 1, "Parfait")  # update the dummy device 0-gris 1-vert 2-yellow 3-orange 4-red
                         elif (self.PHVal >= 6.9) and (self.PHVal < 7.2):
-                            Devices[7].Update(nValue=3, sValue="Legerement bas")
+                            UpdateDeviceIfChanged(7, 3, "Legerement bas")
                         elif self.PHVal < 6.9:
-                            Devices[7].Update(nValue=4, sValue="Trop Bas")
+                            UpdateDeviceIfChanged(7, 4, "Trop Bas")
                         elif (self.PHVal >= 7.6) and (self.PHVal < 7.8):
-                            Devices[7].Update(nValue=3, sValue="Legerement haut")
+                            UpdateDeviceIfChanged(7, 3, "Legerement haut")
                         else:
-                            Devices[7].Update(nValue=4, sValue="Trop Haut")
+                            UpdateDeviceIfChanged(7, 4, "Trop Haut")
         else :
             self.PHVal = 0
-            Devices[8].Update(nValue=0, sValue=str(self.PHVal))
-            Devices[7].Update(nValue=0, sValue="Waiting values")
+            UpdateDeviceIfChanged(8, 0, str(self.PHVal))
+            UpdateDeviceIfChanged(7, 0, "Waiting values")
         if self.Redoxanalyzer :
         # Redox
             jsonData2 = DomoticzAPI("type=command&param=getdevices&rid={}".format(self.RedoxValidx))
@@ -636,32 +645,23 @@ class BasePlugin:
                 for device in jsonData2["result"]:
                     if "Data" in device:
                         self.RedoxVal = float(device["Data"])
-                        Devices[10].Update(nValue=0, sValue=str(self.RedoxVal))  # update the dummy device
+                        UpdateDeviceIfChanged(10, 0, str(self.RedoxVal))  # update the dummy device
                         Domoticz.Debug("SP Redox = {}".format(self.RedoxVal))
                         if (self.RedoxVal >= 650) and (self.RedoxVal < 750):
-                            Devices[9].Update(nValue=1,
-                                              sValue="Parfait")  # update the dummy device 0-gris 1-vert 2-yellow 3-orange 4-red
+                            UpdateDeviceIfChanged(9, 1, "Parfait")  # update the dummy device 0-gris 1-vert 2-yellow 3-orange 4-red
                         elif (self.RedoxVal >= 620) and (self.RedoxVal < 650):
-                            Devices[9].Update(nValue=3, sValue="Legerement bas")
+                            UpdateDeviceIfChanged(9, 3, "Legerement bas")
                         elif self.RedoxVal < 620:
-                            Devices[9].Update(nValue=4, sValue="Trop bas")
+                            UpdateDeviceIfChanged(9, 4, "Trop bas")
                         elif (self.RedoxVal >= 751) and (self.RedoxVal < 800):
-                            Devices[9].Update(nValue=3, sValue="Legerement haut")
+                            UpdateDeviceIfChanged(9, 3, "Legerement haut")
                         else:
-                            Devices[9].Update(nValue=4, sValue="Trop Haut")
+                            UpdateDeviceIfChanged(9, 4, "Trop Haut")
         else :
             self.RedoxVal = 0
-            Devices[10].Update(nValue=0, sValue=str(self.RedoxVal))
-            Devices[9].Update(nValue=0, sValue="Waiting values")
-
-        # modif des users variable
-        self.Internals['SPPH'] = self.PHVal
-        self.Internals['SPRedox'] = self.RedoxVal
-        self.Internals['SPTime'] = self.PumpTemp
-        self.Internals['SPTemp'] = self.SPTemp
-        self.Internals['OutTemp'] = self.TempExt
-        self.Internals['LastFlowTemp'] = self.LastFlowTemp
-        self.saveUserVar()  # update user variables with latest values
+            UpdateDeviceIfChanged(10, 0, str(self.RedoxVal))
+            UpdateDeviceIfChanged(9, 0, "Waiting values")
+        self.persistInternals()
 
         return noerror
 
@@ -713,14 +713,14 @@ class BasePlugin:
 
         if final_temp is not None:
             self.intemp = final_temp
-            Devices[4].Update(nValue=0, sValue=str(self.intemp))
+            UpdateDeviceIfChanged(4, 0, str(self.intemp))
             self.SPTemp = round(float(self.intemp), 1)
             self.SPTempCheck = round(float(self.intemp))
         else:
             if self.NoPermTemp and (self.LastFlowTemp is not None):
                 self.SPTemp = round(float(self.LastFlowTemp), 1)
                 self.SPTempCheck = round(self.SPTemp)
-                Devices[4].Update(nValue=0, sValue=str(self.SPTemp))
+                UpdateDeviceIfChanged(4, 0, str(self.SPTemp))
                 Domoticz.Debug("Using held LastFlowTemp while pump is OFF: {}".format(self.SPTemp))
             else:
                 Domoticz.Debug("No SP Temperature found.")
@@ -731,15 +731,7 @@ class BasePlugin:
             self.LastFlowTemp = avg_infl
 
         Domoticz.Debug("SP Temperature = {}".format(self.SPTemp))
-
-        # modif des users variable
-        self.Internals['SPPH'] = self.PHVal
-        self.Internals['SPRedox'] = self.RedoxVal
-        self.Internals['SPTime'] = self.PumpTemp
-        self.Internals['SPTemp'] = self.SPTemp
-        self.Internals['OutTemp'] = self.TempExt
-        self.Internals['LastFlowTemp'] = self.LastFlowTemp
-        self.saveUserVar()  # update user variables with latest values
+        self.persistInternals()
 
         return noerror
 
@@ -767,21 +759,14 @@ class BasePlugin:
         nbtemps = len(listintemps)
         if nbtemps > 0:
             self.intemp = round(sum(listintemps) / nbtemps, 1)
-            #Devices[4].Update(nValue=0, sValue=str(self.intemp))  # update the dummy device
+            #UpdateDeviceIfChanged(4, 0, str(self.intemp))  # update the dummy device
             self.TempExt = round(float(self.intemp), 1)
         else:
             Domoticz.Debug("No Outdoor Temperature found... ")
             noerror = False
 
         Domoticz.Debug("Outdoor Temperature = {}".format(self.TempExt))
-        # modif des users variable
-        self.Internals['SPPH'] = self.PHVal
-        self.Internals['SPRedox'] = self.RedoxVal
-        self.Internals['SPTime'] = self.PumpTemp
-        self.Internals['SPTemp'] = self.SPTemp
-        self.Internals['OutTemp'] = self.TempExt
-        self.Internals['LastFlowTemp'] = self.LastFlowTemp
-        self.saveUserVar()  # update user variables with latest values
+        self.persistInternals()
 
         return noerror
 
@@ -821,20 +806,32 @@ class BasePlugin:
                 # actually calling Domoticz API
                 DomoticzAPI("type=command&param={}&vname={}&vtype=2&vvalue={}".format(parameter, varname, str(self.InternalsDefaults)))
                 self.Internals = self.InternalsDefaults.copy()  # we re-initialize the internal variables
+                self._internals_serialized = json.dumps(self.Internals, sort_keys=True)
             else:
                 try:
-                    self.Internals.update(ast.literal_eval(valuestring))
-                except:
+                    parsed_values = ast.literal_eval(valuestring)
+                    if isinstance(parsed_values, dict):
+                        self.Internals = self.InternalsDefaults.copy()
+                        self.Internals.update(parsed_values)
+                    else:
+                        self.Internals = self.InternalsDefaults.copy()
+                except Exception:
                     self.Internals = self.InternalsDefaults.copy()
+                self._internals_serialized = json.dumps(self.Internals, sort_keys=True)
                 return
         else:
             Domoticz.Error("Cannot read the uservariable holding the persistent variables")
             self.Internals = self.InternalsDefaults.copy()
+            self._internals_serialized = json.dumps(self.Internals, sort_keys=True)
 
 
     def saveUserVar(self):
         varname = Parameters["Name"] + "-InternalVariables"
+        new_serialized = json.dumps(self.Internals, sort_keys=True)
+        if new_serialized == self._internals_serialized:
+            return
         DomoticzAPI("type=command&param=updateuservariable&vname={}&vtype=2&vvalue={}".format(varname, str(self.Internals)))
+        self._internals_serialized = new_serialized
 
 # Global  ---------------------------------------------------
 
@@ -889,6 +886,16 @@ def DomoticzAPI(APICall):
     except:
         Domoticz.Error("Error calling '{}'".format(url))
     return resultJson
+
+
+def UpdateDeviceIfChanged(unit, nvalue, svalue):
+    if unit not in Devices:
+        return
+    current_nvalue = Devices[unit].nValue
+    current_svalue = Devices[unit].sValue
+    new_svalue = "" if svalue is None else str(svalue)
+    if current_nvalue != nvalue or current_svalue != new_svalue:
+        Devices[unit].Update(nValue=nvalue, sValue=new_svalue)
 
 def CheckParam(name, value, default):
 
